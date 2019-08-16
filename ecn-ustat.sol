@@ -1,13 +1,33 @@
-/*
-Root E-CrackNet contract, contains all component addresses and metadata
+/* 
+E-CrackNet User Statistics Contract
 
-Copyright CrackNet, 2019, All Rights Reserved,
-This software may not be redistributed, modified or published by any other individual.
+Copyright CrackNet, 2019, released under MIT License
 */
-
 
 pragma solidity ^0.5.8;
 
+library SafeMath {
+	 function add(uint a, uint b) internal pure returns(uint c)
+	 {
+	 	c=a+b;
+		require(c>=a);
+	 }
+	 function sub(uint a, uint b) internal pure returns(uint c)
+	 {
+		c=a-b;
+		require(c<=a);	 
+	 }
+	 function mul(uint a, uint b) internal pure returns(uint c)
+	 {
+		c=a*b;	 
+		require(a==0||c/a==b);
+	 }
+	 function div(uint a,uint b) internal pure returns(uint c)
+	 {
+		require(b>0);
+		c = a/b;	 
+	 }
+} 
 
 contract Owned{
 	address public owner;
@@ -74,8 +94,15 @@ contract GroupOwned is Owned{
 
 contract Child is Owned,GroupOwned
 {
+	address public root;
 	address public token;
-		
+	
+	function setRoot(address newroot) public onlyGroup('child_manage',2) returns(bool)
+	{
+		root=newroot;
+		return true;	
+	}
+	
 	function setToken(address newToken) public onlyGroup('child_manage',2) returns (bool)
 	{
 		token=newToken;
@@ -83,59 +110,60 @@ contract Child is Owned,GroupOwned
 	}
 }
 
-contract ECNRoot is Owned,GroupOwned,Child{
+contract ECNUstat is Owned,GroupOwned,Child
+{
+    using SafeMath for uint;
     
     string public name;
     string public symbol;
     
-    mapping(bytes=>mapping(uint=>address)) public components;
-    
-    //secret generation algorithms
-    mapping(bytes=>mapping(uint=>address)) public secret;
+    //number cracked for each algorithm
+    mapping(address=>mapping(bytes=>uint)) public crackScore;
+    mapping(address=>mapping(bytes=>uint256)) public earned;
+	 mapping(address=>mapping(bytes=>uint)) public record;    
     
     constructor() public
     {
-        symbol="CNROOT";
-        name="CrackNet Root v1.0";
+        name="E-CrackNet User Statistics";
+        symbol="ECNUSTAT";
+        //root=address(0);
+        //token=address(0);
         
-        groupmod('component',owner,2);
-        groupmod('secret',owner,2);
+        //add stat setting privileges for the redeem contract
+        groupmod('stat',owner,1);
     }
     
-    /*
-    function getComponent(bytes memory cname,uint ind) public view returns(address)
+    function incScore(address user, bytes memory alg) internal returns(bool)
     {
-        return components[cname][ind];
-    }*/
-    
-    
-    //used by constructor
-    function setComponent(bytes memory cname,uint ind, address ctract) internal returns(bool)
-    {
-        components[cname][ind]=ctract;
+        crackScore[user][alg]=crackScore[user][alg].add(1);
         return true;
     }
     
-    function CSetComponent(bytes memory cname,uint ind,address ctract) public onlyGroup('component',2) returns(bool)
+    function incEarned(address user,bytes memory alg,uint256 reward) internal returns(bool)
     {
-        if(setComponent(cname,ind,ctract)) 
+        earned[user][alg]=earned[user][alg].add(reward);
+        return true;
+    }
+    
+    function CIncScore(address user,bytes memory alg) public onlyGroup('stat',1) returns(bool)
+    {
+        if(incScore(user,alg))
         {
             return true;
         }
-        else{
-            return false;
-        }
+        return false;
     }
     
-    function setSecret(bytes memory secrettype ,uint ind,address ctract) public onlyGroup('secret',2) returns (bool)
+    function CIncEarned(address user,bytes memory alg,uint256 reward) public onlyGroup('stat',1) returns(bool)
     {
-        secret[secrettype][ind]=ctract;
-        return true;
+        if(incEarned(user,alg,reward))
+        {return true;}
+        return false;
     }
     
-    /*
-    function getSecret(bytes memory secrettype,uint ind) public view returns(address)
+    function CSetRecord(address user,bytes memory alg,uint rec) public onlyGroup('stat',1) returns(bool)
     {
-        return secret[secrettype][ind];
-    }*/
+		record[user][alg]=rec;
+		return true;    
+    }
 }
